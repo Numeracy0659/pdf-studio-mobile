@@ -1,7 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument } from "pdf-lib/dist/pdf-lib.esm.js";
 import { Platform } from "react-native";
 
 import { PdfDocumentRecord } from "@/lib/pdf-model";

@@ -8,4 +8,5 @@
 - [x] Add automated tests for document and annotation state behavior.
 - [x] Generate and configure a custom PDF Editor application icon.
 - [x] Run type checking and tests; address any build issues.
+- [x] Resolve the PDF export library’s Metro browser-compatibility issue.
 - [ ] Save the completed project as a checkpoint and provide access to the user.
