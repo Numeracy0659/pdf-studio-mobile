@@ -11,8 +11,8 @@
 - [x] Resolve the PDF export library’s Metro browser-compatibility issue.
 - [ ] Save the completed project as a checkpoint and provide access to the user.
 - [x] Add a GitHub Actions workflow that builds an installable debug APK artifact.
-- [ ] Create a private GitHub repository and push the PDF Studio source.
-- [ ] Verify the GitHub workflow file and hand off the repository build link.
-- [ ] Fix the GitHub Actions APK workflow setup failure.
-- [ ] Verify the APK includes armeabi-v7a support for 32-bit Android phones.
-- [ ] Monitor the replacement GitHub Actions run until an APK artifact is produced.
+- [x] Create a private GitHub repository and push the PDF Studio source.
+- [x] Verify the GitHub workflow file and hand off the repository build link.
+- [x] Fix the GitHub Actions APK workflow setup failure.
+- [x] Verify the APK includes armeabi-v7a support for 32-bit Android phones.
+- [x] Monitor the replacement GitHub Actions run until an APK artifact is produced.
