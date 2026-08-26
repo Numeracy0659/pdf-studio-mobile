@@ -13,3 +13,6 @@
 - [x] Add a GitHub Actions workflow that builds an installable debug APK artifact.
 - [ ] Create a private GitHub repository and push the PDF Studio source.
 - [ ] Verify the GitHub workflow file and hand off the repository build link.
+- [ ] Fix the GitHub Actions APK workflow setup failure.
+- [ ] Verify the APK includes armeabi-v7a support for 32-bit Android phones.
+- [ ] Monitor the replacement GitHub Actions run until an APK artifact is produced.
