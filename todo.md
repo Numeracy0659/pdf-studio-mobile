@@ -16,3 +16,5 @@
 - [x] Fix the GitHub Actions APK workflow setup failure.
 - [x] Verify the APK includes armeabi-v7a support for 32-bit Android phones.
 - [x] Monitor the replacement GitHub Actions run until an APK artifact is produced.
+- [ ] Diagnose and fix the Android splash screen that does not dismiss on launch.
+- [ ] Rebuild and validate a corrected universal APK for 32-bit and 64-bit ARM phones.
