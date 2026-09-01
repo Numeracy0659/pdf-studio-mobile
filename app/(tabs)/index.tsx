@@ -42,7 +42,22 @@ export default function PdfStudioScreen() {
   const document = useMemo(() => documents.find((item) => item.id === selectedId) ?? null, [documents, selectedId]);
   const pageAnnotations = useMemo(() => document ? annotationsForPage(document.annotations, page) : [], [document, page]);
 
-  useEffect(() => { loadDocuments().then(setDocuments).finally(() => setLoading(false)); }, []);
+  useEffect(() => {
+    let mounted = true;
+    loadDocuments()
+      .then((items) => {
+        if (mounted) setDocuments(items);
+      })
+      .catch(() => {
+        if (mounted) setDocuments([]);
+      })
+      .finally(() => {
+        if (mounted) setLoading(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
   const persist = async (next: PdfDocumentRecord[]) => { setDocuments(next); await saveDocuments(next); };
   const update = async (fn: (item: PdfDocumentRecord) => PdfDocumentRecord) => { if (document) await persist(documents.map((item) => item.id === document.id ? fn(item) : item)); };
   const pointFrom = (event: any): NormalizedPoint => ({ x: Math.max(.03, Math.min(.9, event.nativeEvent.locationX / Math.max(canvas.width, 1))), y: Math.max(.03, Math.min(.9, event.nativeEvent.locationY / Math.max(canvas.height, 1))) });

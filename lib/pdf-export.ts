@@ -1,5 +1,5 @@
 import * as FileSystem from "expo-file-system/legacy";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib/dist/pdf-lib.esm.js";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { Platform } from "react-native";
 
 import { PdfAnnotation, PdfDocumentRecord } from "@/lib/pdf-model";
