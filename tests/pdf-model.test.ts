@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { annotationsForPage, createAnnotation, removeLastAnnotationOnPage, type PdfDocumentRecord } from "../lib/pdf-model";
+import { annotationLabel, annotationsForPage, createAnnotation, removeLastAnnotationOnPage, type PdfDocumentRecord } from "../lib/pdf-model";
 
 const document: PdfDocumentRecord = {
   id: "example",
@@ -38,5 +38,12 @@ describe("PDF editor annotation state", () => {
 
     expect(result.removed?.id).toBe(latestPageOne.id);
     expect(result.document.annotations.map((item) => item.id)).toEqual([pageOne.id, pageTwo.id]);
+  });
+
+  it("models delete-line edits as a persisted page operation", () => {
+    const deletion = createAnnotation("delete", 1, { x: 0.2, y: 0.4 });
+
+    expect(deletion.kind).toBe("delete");
+    expect(annotationLabel(deletion)).toBe("Delete line");
   });
 });
