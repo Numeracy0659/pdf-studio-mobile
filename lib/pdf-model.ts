@@ -32,6 +32,7 @@ export type PdfDocumentRecord = {
 export const annotationLabel = (annotation: PdfAnnotation) => {
   if (annotation.kind === "highlight") return "Highlight";
   if (annotation.kind === "draw") return "Pen mark";
+  if (annotation.kind === "delete") return "Delete line";
   if (annotation.kind === "replace") return "Cover & replace";
   if (annotation.kind === "delete") return "Delete line";
   return annotation.text?.trim() || "Text callout";

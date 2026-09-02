@@ -1,18 +1,42 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system/legacy";
-import { PDFDocument } from "pdf-lib/dist/pdf-lib.esm.js";
+import { PDFDocument } from "pdf-lib";
 import { Platform } from "react-native";
 
-import { PdfDocumentRecord } from "@/lib/pdf-model";
+import type { PdfDocumentRecord } from "@/lib/pdf-model";
+import { withTimeout } from "@/lib/pdf-storage-safety";
 
 const STORAGE_KEY = "pdf-studio-documents-v1";
 const DOCUMENTS_DIRECTORY = `${FileSystem.documentDirectory ?? ""}pdf-studio/`;
+const STORAGE_TIMEOUT_MS = 4500;
 const safeFileName = (name: string) => name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+
+type UnknownRecord = Record<string, unknown>;
+
+function isValidDocumentRecord(value: unknown): value is PdfDocumentRecord {
+  if (!value || typeof value !== "object") return false;
+  const record = value as UnknownRecord;
+  return (
+    typeof record.id === "string" &&
+    record.id.length > 0 &&
+    typeof record.name === "string" &&
+    typeof record.sourceUri === "string" &&
+    typeof record.localUri === "string" &&
+    (record.size === null || typeof record.size === "number") &&
+    typeof record.pageCount === "number" &&
+    Number.isFinite(record.pageCount) &&
+    record.pageCount > 0 &&
+    typeof record.createdAt === "number" &&
+    typeof record.lastEditedAt === "number" &&
+    Array.isArray(record.annotations)
+  );
+}
 
 async function getPdfSource(uri: string): Promise<string | ArrayBuffer> {
   if (Platform.OS === "web") {
     const response = await fetch(uri);
+    if (!response.ok) throw new Error(`Could not read PDF source (${response.status})`);
     return response.arrayBuffer();
   }
   return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
@@ -25,17 +49,21 @@ async function readPageCount(uri: string) {
 }
 
 export async function loadDocuments(): Promise<PdfDocumentRecord[]> {
-  const stored = await AsyncStorage.getItem(STORAGE_KEY);
-  if (!stored) return [];
   try {
-    return (JSON.parse(stored) as PdfDocumentRecord[]).sort((left, right) => right.lastEditedAt - left.lastEditedAt);
+    const stored = await withTimeout(AsyncStorage.getItem(STORAGE_KEY), STORAGE_TIMEOUT_MS);
+    if (!stored) return [];
+    const parsed: unknown = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter(isValidDocumentRecord)
+      .sort((left, right) => right.lastEditedAt - left.lastEditedAt);
   } catch {
     return [];
   }
 }
 
 export async function saveDocuments(documents: PdfDocumentRecord[]) {
-  await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(documents));
+  await withTimeout(AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(documents)), STORAGE_TIMEOUT_MS, "Document save operation timed out");
 }
 
 export async function importPdfDocument(asset: DocumentPicker.DocumentPickerAsset): Promise<PdfDocumentRecord> {
