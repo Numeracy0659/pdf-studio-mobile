@@ -30,6 +30,10 @@ function drawAnnotation(annotation: PdfAnnotation, page: ReturnType<PDFDocument[
     }
     return;
   }
+  if (annotation.kind === "delete") {
+    page.drawRectangle({ x: Math.max(0, point.x - 3), y: point.y - 20, width: Math.min(width * 0.78, width - point.x - 10), height: 27, color: rgb(1, 1, 1) });
+    return;
+  }
   const text = annotation.text?.trim() || "Text";
   const fontSize = annotation.kind === "replace" ? 12 : 13;
   const textWidth = Math.min(width * 0.62, width - point.x - 14);
