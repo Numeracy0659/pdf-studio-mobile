@@ -3,24 +3,116 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as Sharing from "expo-sharing";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  KeyboardAvoidingView,
+  Linking,
+  Modal,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { ScreenContainer } from "@/components/screen-container";
-import { annotationLabel, annotationsForPage, createAnnotation, formatFileSize, removeLastAnnotationOnPage, type AnnotationKind, type NormalizedPoint, type PdfAnnotation, type PdfDocumentRecord } from "@/lib/pdf-model";
+import {
+  annotationLabel,
+  annotationsForPage,
+  createAnnotation,
+  formatFileSize,
+  removeLastAnnotationOnPage,
+  type AnnotationKind,
+  type NormalizedPoint,
+  type PdfAnnotation,
+  type PdfDocumentRecord,
+} from "@/lib/pdf-model";
 import { exportAnnotatedPdf } from "@/lib/pdf-export";
-import { importPdfDocument, loadDocuments, removeImportedPdf, saveDocuments } from "@/lib/pdf-storage";
+import {
+  importPdfDocument,
+  loadDocuments,
+  removeImportedPdf,
+  saveDocuments,
+} from "@/lib/pdf-storage";
 
 type Tool = "view" | AnnotationKind;
-const vibrate = () => { if (Platform.OS !== "web") Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); };
-const dateLabel = (value: number) => new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(value));
-const promptFor = (tool: Tool) => tool === "text" ? "Tap a spot to add text" : tool === "replace" ? "Tap a spot to cover and replace" : tool === "delete" ? "Tap a line to delete" : tool === "highlight" ? "Tap a spot to highlight" : tool === "draw" ? "Draw on the page" : "";
+const vibrate = () => {
+  if (Platform.OS !== "web")
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+};
+const dateLabel = (value: number) =>
+  new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(
+    new Date(value),
+  );
+const promptFor = (tool: Tool) =>
+  tool === "text"
+    ? "Tap a spot to add text"
+    : tool === "replace"
+      ? "Tap a spot to cover and replace"
+      : tool === "delete"
+        ? "Tap a line to delete"
+        : tool === "highlight"
+          ? "Tap a spot to highlight"
+          : tool === "draw"
+            ? "Draw on the page"
+            : "";
 
-function Primary({ label, icon, onPress, disabled = false }: { label: string; icon: any; onPress: () => void; disabled?: boolean }) {
-  return <Pressable disabled={disabled} onPress={onPress} style={({ pressed }) => [s.primary, (pressed || disabled) && s.pressed]}><MaterialIcons name={icon} size={20} color="#fff" /><Text style={s.primaryText}>{label}</Text></Pressable>;
+function Primary({
+  label,
+  icon,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  icon: any;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Pressable
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [s.primary, (pressed || disabled) && s.pressed]}
+    >
+      <MaterialIcons name={icon} size={20} color="#fff" />
+      <Text style={s.primaryText}>{label}</Text>
+    </Pressable>
+  );
 }
 
-function ToolButton({ label, icon, active, onPress }: { label: string; icon: any; active: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => [s.tool, active && s.toolActive, pressed && s.pressed]}><MaterialIcons name={icon} size={21} color={active ? "#fff" : "#475569"} /><Text style={[s.toolText, active && s.toolTextActive]}>{label}</Text></Pressable>;
+function ToolButton({
+  label,
+  icon,
+  active,
+  onPress,
+}: {
+  label: string;
+  icon: any;
+  active: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: active }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        s.tool,
+        active && s.toolActive,
+        pressed && s.pressed,
+      ]}
+    >
+      <MaterialIcons
+        name={icon}
+        size={21}
+        color={active ? "#fff" : "#475569"}
+      />
+      <Text style={[s.toolText, active && s.toolTextActive]}>{label}</Text>
+    </Pressable>
+  );
 }
 
 export default function PdfStudioScreen() {
@@ -39,63 +131,1019 @@ export default function PdfStudioScreen() {
   const strokeRef = useRef<NormalizedPoint[]>([]);
   const [redo, setRedo] = useState<PdfAnnotation[]>([]);
 
-  const document = useMemo(() => documents.find((item) => item.id === selectedId) ?? null, [documents, selectedId]);
-  const pageAnnotations = useMemo(() => document ? annotationsForPage(document.annotations, page) : [], [document, page]);
+  const document = useMemo(
+    () => documents.find((item) => item.id === selectedId) ?? null,
+    [documents, selectedId],
+  );
+  const pageAnnotations = useMemo(
+    () => (document ? annotationsForPage(document.annotations, page) : []),
+    [document, page],
+  );
 
-  useEffect(() => { loadDocuments().then(setDocuments).finally(() => setLoading(false)); }, []);
-  const persist = async (next: PdfDocumentRecord[]) => { setDocuments(next); await saveDocuments(next); };
-  const update = async (fn: (item: PdfDocumentRecord) => PdfDocumentRecord) => { if (document) await persist(documents.map((item) => item.id === document.id ? fn(item) : item)); };
-  const pointFrom = (event: any): NormalizedPoint => ({ x: Math.max(.03, Math.min(.9, event.nativeEvent.locationX / Math.max(canvas.width, 1))), y: Math.max(.03, Math.min(.9, event.nativeEvent.locationY / Math.max(canvas.height, 1))) });
+  useEffect(() => {
+    loadDocuments()
+      .then(setDocuments)
+      .finally(() => setLoading(false));
+  }, []);
+  const persist = async (next: PdfDocumentRecord[]) => {
+    setDocuments(next);
+    await saveDocuments(next);
+  };
+  const update = async (fn: (item: PdfDocumentRecord) => PdfDocumentRecord) => {
+    if (document)
+      await persist(
+        documents.map((item) => (item.id === document.id ? fn(item) : item)),
+      );
+  };
+  const pointFrom = (event: any): NormalizedPoint => ({
+    x: Math.max(
+      0.03,
+      Math.min(0.9, event.nativeEvent.locationX / Math.max(canvas.width, 1)),
+    ),
+    y: Math.max(
+      0.03,
+      Math.min(0.9, event.nativeEvent.locationY / Math.max(canvas.height, 1)),
+    ),
+  });
 
   const openPdf = async () => {
     try {
-      vibrate(); setImporting(true);
-      const result = await DocumentPicker.getDocumentAsync({ type: "application/pdf", copyToCacheDirectory: true });
+      vibrate();
+      setImporting(true);
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "application/pdf",
+        copyToCacheDirectory: true,
+      });
       if (result.canceled) return;
       const next = await importPdfDocument(result.assets[0]);
-      await persist([next, ...documents]); setSelectedId(next.id); setPage(1); setTool("view"); setRedo([]);
-    } catch (error) { Alert.alert("Could not open PDF", error instanceof Error ? error.message : "Choose another PDF and try again."); }
-    finally { setImporting(false); }
+      await persist([next, ...documents]);
+      setSelectedId(next.id);
+      setPage(1);
+      setTool("view");
+      setRedo([]);
+    } catch (error) {
+      Alert.alert(
+        "Could not open PDF",
+        error instanceof Error
+          ? error.message
+          : "Choose another PDF and try again.",
+      );
+    } finally {
+      setImporting(false);
+    }
   };
 
-  const add = async (kind: AnnotationKind, point: NormalizedPoint, details: Partial<PdfAnnotation> = {}) => {
-    await update((item) => ({ ...item, annotations: [...item.annotations, createAnnotation(kind, page, point, details)], lastEditedAt: Date.now() }));
-    setRedo([]); setTool("view"); if (Platform.OS !== "web") Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  const add = async (
+    kind: AnnotationKind,
+    point: NormalizedPoint,
+    details: Partial<PdfAnnotation> = {},
+  ) => {
+    await update((item) => ({
+      ...item,
+      annotations: [
+        ...item.annotations,
+        createAnnotation(kind, page, point, details),
+      ],
+      lastEditedAt: Date.now(),
+    }));
+    setRedo([]);
+    setTool("view");
+    if (Platform.OS !== "web")
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
-  const chooseTool = (next: Tool) => { vibrate(); setTool(tool === next ? "view" : next); setPlacement(null); setStroke([]); strokeRef.current = []; };
-  const onStart = (event: any) => { if (tool === "draw") { const next = [pointFrom(event)]; strokeRef.current = next; setStroke(next); } };
-  const onMove = (event: any) => { if (tool === "draw") { const next = [...strokeRef.current, pointFrom(event)]; strokeRef.current = next; setStroke(next); } };
+  const chooseTool = (next: Tool) => {
+    vibrate();
+    setTool(tool === next ? "view" : next);
+    setPlacement(null);
+    setStroke([]);
+    strokeRef.current = [];
+  };
+  const onStart = (event: any) => {
+    if (tool === "draw") {
+      const next = [pointFrom(event)];
+      strokeRef.current = next;
+      setStroke(next);
+    }
+  };
+  const onMove = (event: any) => {
+    if (tool === "draw") {
+      const next = [...strokeRef.current, pointFrom(event)];
+      strokeRef.current = next;
+      setStroke(next);
+    }
+  };
   const onEnd = async (event: any) => {
     if (!document || tool === "view") return;
-    if (tool === "draw") { if (strokeRef.current.length > 1) await add("draw", strokeRef.current[0], { points: strokeRef.current }); strokeRef.current = []; setStroke([]); return; }
+    if (tool === "draw") {
+      if (strokeRef.current.length > 1)
+        await add("draw", strokeRef.current[0], { points: strokeRef.current });
+      strokeRef.current = [];
+      setStroke([]);
+      return;
+    }
     const point = pointFrom(event);
-    if (tool === "highlight") { await add("highlight", point); return; }
-    if (tool === "delete") { await add("delete", point); return; }
-    setPlacement(point); setText(""); setTextOpen(true);
+    if (tool === "highlight") {
+      await add("highlight", point);
+      return;
+    }
+    if (tool === "delete") {
+      await add("delete", point);
+      return;
+    }
+    setPlacement(point);
+    setText("");
+    setTextOpen(true);
   };
-  const addText = async () => { if (placement && text.trim()) { await add(tool === "replace" ? "replace" : "text", placement, { text: text.trim() }); setTextOpen(false); setPlacement(null); } };
-  const undo = async () => { if (!document) return; const { document: next, removed } = removeLastAnnotationOnPage(document, page); if (removed) { await update(() => next); setRedo((items) => [...items, removed]); } };
-  const redoLast = async () => { const item = redo.at(-1); if (!item) return; await update((current) => ({ ...current, annotations: [...current.annotations, item], lastEditedAt: Date.now() })); setRedo((items) => items.slice(0, -1)); };
-  const removeAnnotation = async (id: string) => update((item) => ({ ...item, annotations: item.annotations.filter((annotation) => annotation.id !== id), lastEditedAt: Date.now() }));
-  const removeDocument = (item: PdfDocumentRecord) => Alert.alert("Remove this PDF?", "The imported copy and its saved changes will be removed from this device.", [{ text: "Cancel", style: "cancel" }, { text: "Remove", style: "destructive", onPress: async () => { await removeImportedPdf(item); await persist(documents.filter((document) => document.id !== item.id)); } }]);
-  const preview = async () => { if (!document) return; try { await Linking.openURL(document.localUri); } catch { Alert.alert("Preview unavailable", "Your device could not open this local PDF. You can still add edits and export a new copy."); } };
+  const addText = async () => {
+    if (placement && text.trim()) {
+      await add(tool === "replace" ? "replace" : "text", placement, {
+        text: text.trim(),
+      });
+      setTextOpen(false);
+      setPlacement(null);
+    }
+  };
+  const undo = async () => {
+    if (!document) return;
+    const { document: next, removed } = removeLastAnnotationOnPage(
+      document,
+      page,
+    );
+    if (removed) {
+      await update(() => next);
+      setRedo((items) => [...items, removed]);
+    }
+  };
+  const redoLast = async () => {
+    const item = redo.at(-1);
+    if (!item) return;
+    await update((current) => ({
+      ...current,
+      annotations: [...current.annotations, item],
+      lastEditedAt: Date.now(),
+    }));
+    setRedo((items) => items.slice(0, -1));
+  };
+  const removeAnnotation = async (id: string) =>
+    update((item) => ({
+      ...item,
+      annotations: item.annotations.filter(
+        (annotation) => annotation.id !== id,
+      ),
+      lastEditedAt: Date.now(),
+    }));
+  const removeDocument = (item: PdfDocumentRecord) =>
+    Alert.alert(
+      "Remove this PDF?",
+      "The imported copy and its saved changes will be removed from this device.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Remove",
+          style: "destructive",
+          onPress: async () => {
+            await removeImportedPdf(item);
+            await persist(
+              documents.filter((document) => document.id !== item.id),
+            );
+          },
+        },
+      ],
+    );
+  const preview = async () => {
+    if (!document) return;
+    try {
+      await Linking.openURL(document.localUri);
+    } catch {
+      Alert.alert(
+        "Preview unavailable",
+        "Your device could not open this local PDF. You can still add edits and export a new copy.",
+      );
+    }
+  };
   const exportPdf = async () => {
     if (!document) return;
     try {
-      setExporting(true); const output = await exportAnnotatedPdf(document); await update((item) => ({ ...item, lastExportedUri: output, lastEditedAt: Date.now() }));
-      if (Platform.OS === "web") { await Linking.openURL(output); Alert.alert("Export ready", "Your browser opened the edited PDF in a new tab."); }
-      else if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(output, { mimeType: "application/pdf", UTI: "com.adobe.pdf", dialogTitle: "Share edited PDF" });
-      else Alert.alert("Export ready", "The edited PDF has been saved in this app’s documents folder.");
-    } catch (error) { Alert.alert("Could not export PDF", error instanceof Error ? error.message : "Try exporting again."); }
-    finally { setExporting(false); }
+      setExporting(true);
+      const output = await exportAnnotatedPdf(document);
+      await update((item) => ({
+        ...item,
+        lastExportedUri: output,
+        lastEditedAt: Date.now(),
+      }));
+      if (Platform.OS === "web") {
+        await Linking.openURL(output);
+        Alert.alert(
+          "Export ready",
+          "Your browser opened the edited PDF in a new tab.",
+        );
+      } else if (await Sharing.isAvailableAsync())
+        await Sharing.shareAsync(output, {
+          mimeType: "application/pdf",
+          UTI: "com.adobe.pdf",
+          dialogTitle: "Share edited PDF",
+        });
+      else
+        Alert.alert(
+          "Export ready",
+          "The edited PDF has been saved in this app’s documents folder.",
+        );
+    } catch (error) {
+      Alert.alert(
+        "Could not export PDF",
+        error instanceof Error ? error.message : "Try exporting again.",
+      );
+    } finally {
+      setExporting(false);
+    }
   };
 
-  if (loading) return <ScreenContainer edges={["top", "bottom", "left", "right"]}><View style={s.loading}><ActivityIndicator size="large" color="#2563EB" /><Text style={s.muted}>Preparing workspace…</Text></View></ScreenContainer>;
-  if (!document) return <ScreenContainer><FlatList data={documents} keyExtractor={(item) => item.id} contentContainerStyle={[s.library, !documents.length && { flexGrow: 1 }]} ListHeaderComponent={<View><View style={s.mark}><MaterialIcons name="picture-as-pdf" size={25} color="#fff" /></View><Text style={s.title}>PDF Studio</Text><Text style={s.subtitle}>Open a PDF, make focused changes, and export a new copy from your device.</Text><Primary icon="folder-open" label={importing ? "Opening PDF…" : "Open PDF"} onPress={openPdf} disabled={importing} /><Text style={s.sectionLabel}>RECENT DOCUMENTS</Text></View>} ListEmptyComponent={<View style={s.empty}><MaterialIcons name="note-add" size={31} color="#2563EB" /><Text style={s.emptyTitle}>Start with a PDF</Text><Text style={s.emptyCopy}>Choose a document from Files, add text, highlights, or pen marks, then share an edited PDF.</Text><Primary icon="add" label="Choose a PDF" onPress={openPdf} disabled={importing} /></View>} renderItem={({ item }) => <Pressable onPress={() => { vibrate(); setSelectedId(item.id); setPage(1); }} style={({ pressed }) => [s.doc, pressed && s.pressed]}><View style={s.docIcon}><MaterialIcons name="picture-as-pdf" size={26} color="#2563EB" /></View><View style={{ flex: 1 }}><Text numberOfLines={1} style={s.docName}>{item.name}</Text><Text style={s.docMeta}>{item.pageCount} pages · {formatFileSize(item.size)} · {dateLabel(item.lastEditedAt)}</Text><Text style={s.changes}>{item.annotations.length} saved changes</Text></View><Pressable accessibilityLabel={`Remove ${item.name}`} onPress={() => removeDocument(item)} hitSlop={10}><MaterialIcons name="more-horiz" size={24} color="#94A3B8" /></Pressable></Pressable>} /> </ScreenContainer>;
+  if (loading)
+    return (
+      <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+        <View style={s.loading}>
+          <ActivityIndicator size="large" color="#2563EB" />
+          <Text style={s.muted}>Preparing workspace…</Text>
+        </View>
+      </ScreenContainer>
+    );
+  if (!document)
+    return (
+      <ScreenContainer>
+        <FlatList
+          data={documents}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[
+            s.library,
+            !documents.length && { flexGrow: 1 },
+          ]}
+          ListHeaderComponent={
+            <View>
+              <View style={s.mark}>
+                <MaterialIcons name="picture-as-pdf" size={25} color="#fff" />
+              </View>
+              <Text style={s.title}>PDF Studio</Text>
+              <Text style={s.subtitle}>
+                Open a PDF, make focused changes, and export a new copy from
+                your device.
+              </Text>
+              <Primary
+                icon="folder-open"
+                label={importing ? "Opening PDF…" : "Open PDF"}
+                onPress={openPdf}
+                disabled={importing}
+              />
+              <Text style={s.sectionLabel}>RECENT DOCUMENTS</Text>
+            </View>
+          }
+          ListEmptyComponent={
+            <View style={s.empty}>
+              <MaterialIcons name="note-add" size={31} color="#2563EB" />
+              <Text style={s.emptyTitle}>Start with a PDF</Text>
+              <Text style={s.emptyCopy}>
+                Choose a document from Files, add text, highlights, or pen
+                marks, then share an edited PDF.
+              </Text>
+              <Primary
+                icon="add"
+                label="Choose a PDF"
+                onPress={openPdf}
+                disabled={importing}
+              />
+            </View>
+          }
+          renderItem={({ item }) => (
+            <Pressable
+              onPress={() => {
+                vibrate();
+                setSelectedId(item.id);
+                setPage(1);
+              }}
+              style={({ pressed }) => [s.doc, pressed && s.pressed]}
+            >
+              <View style={s.docIcon}>
+                <MaterialIcons
+                  name="picture-as-pdf"
+                  size={26}
+                  color="#2563EB"
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text numberOfLines={1} style={s.docName}>
+                  {item.name}
+                </Text>
+                <Text style={s.docMeta}>
+                  {item.pageCount} pages · {formatFileSize(item.size)} ·{" "}
+                  {dateLabel(item.lastEditedAt)}
+                </Text>
+                <Text style={s.changes}>
+                  {item.annotations.length} saved changes
+                </Text>
+              </View>
+              <Pressable
+                accessibilityLabel={`Remove ${item.name}`}
+                onPress={() => removeDocument(item)}
+                hitSlop={10}
+              >
+                <MaterialIcons name="more-horiz" size={24} color="#94A3B8" />
+              </Pressable>
+            </Pressable>
+          )}
+        />{" "}
+      </ScreenContainer>
+    );
 
-  return <ScreenContainer edges={["top", "bottom", "left", "right"]}><FlatList data={pageAnnotations} keyExtractor={(item) => item.id} contentContainerStyle={s.editor} ListHeaderComponent={<><View style={s.topbar}><Pressable onPress={() => { setSelectedId(null); setTool("view"); }} style={s.icon}><MaterialIcons name="arrow-back" size={25} color="#0B1F3A" /></Pressable><View style={{ alignItems: "center", flex: 1, marginHorizontal: 8 }}><Text numberOfLines={1} style={s.editorTitle}>{document.name}</Text><Text style={s.status}>{document.annotations.length ? "Saved locally" : "No edits yet"}</Text></View><Pressable onPress={preview} style={s.icon}><MaterialIcons name="open-in-new" size={22} color="#0B1F3A" /></Pressable></View><View style={s.nav}><Pressable disabled={page === 1} onPress={() => setPage((value) => Math.max(1, value - 1))} style={s.navButton}><MaterialIcons name="chevron-left" size={25} color="#2563EB" /></Pressable><Text style={s.pageCount}>Page {page} of {document.pageCount}</Text><Pressable disabled={page === document.pageCount} onPress={() => setPage((value) => Math.min(document.pageCount, value + 1))} style={s.navButton}><MaterialIcons name="chevron-right" size={25} color="#2563EB" /></Pressable></View><View style={s.hint}><MaterialIcons name="info-outline" size={17} color="#64748B" /><Text style={s.hintText}>Preview opens the original document. Your changes are placed into the exported PDF.</Text></View><View onLayout={(event) => setCanvas(event.nativeEvent.layout)} onStartShouldSetResponder={() => tool !== "view"} onResponderGrant={onStart} onResponderMove={onMove} onResponderRelease={onEnd} style={s.paper}><View pointerEvents="none" style={s.paperHeader}><Text style={s.paperLabel}>PDF STUDIO</Text><Text style={s.paperLabel}>PAGE {page}</Text></View><View pointerEvents="none" style={s.watermark}><MaterialIcons name="picture-as-pdf" size={42} color="#CBD5E1" /><Text style={s.waterTitle}>Editing layer</Text><Text style={s.waterCopy}>Original content remains protected. Add changes here, then export.</Text></View>{pageAnnotations.filter((item) => item.kind === "highlight").map((item) => <View key={item.id} pointerEvents="none" style={[s.highlight, { left: `${item.x * 100}%`, top: `${item.y * 100}%` }]} />)}{pageAnnotations.filter((item) => item.kind === "text" || item.kind === "replace").map((item) => <View key={item.id} pointerEvents="none" style={[item.kind === "replace" ? s.replace : s.textOverlay, { left: `${item.x * 100}%`, top: `${item.y * 100}%` }]}><Text numberOfLines={3} style={item.kind === "replace" ? s.replaceText : s.textOverlayText}>{item.text}</Text></View>)}{(pageAnnotations.filter((item) => item.kind === "draw").flatMap((item) => item.points ?? []).concat(stroke)).map((point, index) => <View key={`${index}-${point.x}-${point.y}`} pointerEvents="none" style={[s.dot, { left: `${point.x * 100}%`, top: `${point.y * 100}%` }]} />)}{tool !== "view" && <View pointerEvents="none" style={s.prompt}><Text style={s.promptText}>{promptFor(tool)}</Text></View>}</View><View style={s.tools}><ToolButton label="Text" icon="text-fields" active={tool === "text"} onPress={() => chooseTool("text")} /><ToolButton label="Highlight" icon="highlight" active={tool === "highlight"} onPress={() => chooseTool("highlight")} /><ToolButton label="Draw" icon="gesture" active={tool === "draw"} onPress={() => chooseTool("draw")} /><ToolButton label="Replace" icon="edit-note" active={tool === "replace"} onPress={() => chooseTool("replace")} /><ToolButton label="Delete line" icon="format-strikethrough" active={tool === "delete"} onPress={() => chooseTool("delete")} /></View><View style={s.actions}><Pressable disabled={!pageAnnotations.length} onPress={undo} style={({ pressed }) => [s.smallButton, pressed && s.pressed]}><MaterialIcons name="undo" size={20} color="#475569" /><Text style={s.smallText}>Undo</Text></Pressable><Pressable disabled={!redo.length} onPress={redoLast} style={({ pressed }) => [s.smallButton, pressed && s.pressed]}><MaterialIcons name="redo" size={20} color="#475569" /><Text style={s.smallText}>Redo</Text></Pressable><Pressable onPress={exportPdf} style={({ pressed }) => [s.export, pressed && s.pressed]}>{exporting ? <ActivityIndicator size="small" color="#fff" /> : <><MaterialIcons name="ios-share" size={19} color="#fff" /><Text style={s.exportText}>Export</Text></>}</Pressable></View><View style={s.changeHeader}><Text style={s.changeTitle}>Changes on this page</Text><Text style={s.badge}>{pageAnnotations.length}</Text></View></>} ListEmptyComponent={<View style={s.emptyChanges}><Text style={s.muted}>No changes on page {page} yet.</Text></View>} renderItem={({ item }) => <View style={s.change}><View style={s.changeIcon}><MaterialIcons name={item.kind === "highlight" ? "highlight" : item.kind === "draw" ? "gesture" : item.kind === "replace" ? "edit-note" : item.kind === "delete" ? "format-strikethrough" : "text-fields"} size={19} color="#2563EB" /></View><View style={{ flex: 1 }}><Text numberOfLines={1} style={s.changeName}>{annotationLabel(item)}</Text><Text style={s.changeMeta}>{item.kind === "replace" ? "Visible text replacement" : item.kind === "delete" ? "White cover overlay" : item.kind}</Text></View><Pressable onPress={() => removeAnnotation(item.id)} hitSlop={10}><MaterialIcons name="close" size={20} color="#94A3B8" /></Pressable></View>} /> <Modal transparent animationType="slide" visible={textOpen} onRequestClose={() => setTextOpen(false)}><KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={s.backdrop}><View style={s.sheet}><View style={s.handle} /><Text style={s.sheetTitle}>{tool === "replace" ? "Cover & replace text" : "Add text callout"}</Text><Text style={s.sheetCopy}>{tool === "replace" ? "A white cover and your replacement wording will appear in the exported PDF." : "Your wording will be added to the selected location in the exported PDF."}</Text><TextInput autoFocus multiline value={text} onChangeText={setText} placeholder="Type your text" placeholderTextColor="#94A3B8" style={s.input} /><View style={s.sheetActions}><Pressable onPress={() => { setTextOpen(false); setTool("view"); }}><Text style={s.cancel}>Cancel</Text></Pressable><View style={{ width: 142 }}><Primary label={tool === "replace" ? "Replace" : "Add text"} icon="add" onPress={addText} disabled={!text.trim()} /></View></View></View></KeyboardAvoidingView></Modal></ScreenContainer>;
+  return (
+    <ScreenContainer edges={["top", "bottom", "left", "right"]}>
+      <FlatList
+        data={pageAnnotations}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={s.editor}
+        ListHeaderComponent={
+          <>
+            <View style={s.topbar}>
+              <Pressable
+                onPress={() => {
+                  setSelectedId(null);
+                  setTool("view");
+                }}
+                style={s.icon}
+              >
+                <MaterialIcons name="arrow-back" size={25} color="#0B1F3A" />
+              </Pressable>
+              <View
+                style={{ alignItems: "center", flex: 1, marginHorizontal: 8 }}
+              >
+                <Text numberOfLines={1} style={s.editorTitle}>
+                  {document.name}
+                </Text>
+                <Text style={s.status}>
+                  {document.annotations.length
+                    ? "Saved locally"
+                    : "No edits yet"}
+                </Text>
+              </View>
+              <Pressable onPress={preview} style={s.icon}>
+                <MaterialIcons name="open-in-new" size={22} color="#0B1F3A" />
+              </Pressable>
+            </View>
+            <View style={s.nav}>
+              <Pressable
+                disabled={page === 1}
+                onPress={() => setPage((value) => Math.max(1, value - 1))}
+                style={s.navButton}
+              >
+                <MaterialIcons name="chevron-left" size={25} color="#2563EB" />
+              </Pressable>
+              <Text style={s.pageCount}>
+                Page {page} of {document.pageCount}
+              </Text>
+              <Pressable
+                disabled={page === document.pageCount}
+                onPress={() =>
+                  setPage((value) => Math.min(document.pageCount, value + 1))
+                }
+                style={s.navButton}
+              >
+                <MaterialIcons name="chevron-right" size={25} color="#2563EB" />
+              </Pressable>
+            </View>
+            <View style={s.hint}>
+              <MaterialIcons name="info-outline" size={17} color="#64748B" />
+              <Text style={s.hintText}>
+                Preview opens the original document. Your changes are placed
+                into the exported PDF.
+              </Text>
+            </View>
+            <View
+              onLayout={(event) => setCanvas(event.nativeEvent.layout)}
+              onStartShouldSetResponder={() => tool !== "view"}
+              onResponderGrant={onStart}
+              onResponderMove={onMove}
+              onResponderRelease={onEnd}
+              style={s.paper}
+            >
+              <View pointerEvents="none" style={s.paperHeader}>
+                <Text style={s.paperLabel}>PDF STUDIO</Text>
+                <Text style={s.paperLabel}>PAGE {page}</Text>
+              </View>
+              <View pointerEvents="none" style={s.watermark}>
+                <MaterialIcons
+                  name="picture-as-pdf"
+                  size={42}
+                  color="#CBD5E1"
+                />
+                <Text style={s.waterTitle}>Editing layer</Text>
+                <Text style={s.waterCopy}>
+                  Original content remains protected. Add changes here, then
+                  export.
+                </Text>
+              </View>
+              {pageAnnotations
+                .filter((item) => item.kind === "highlight")
+                .map((item) => (
+                  <View
+                    key={item.id}
+                    pointerEvents="none"
+                    style={[
+                      s.highlight,
+                      { left: `${item.x * 100}%`, top: `${item.y * 100}%` },
+                    ]}
+                  />
+                ))}
+              {pageAnnotations
+                .filter(
+                  (item) => item.kind === "text" || item.kind === "replace",
+                )
+                .map((item) => (
+                  <View
+                    key={item.id}
+                    pointerEvents="none"
+                    style={[
+                      item.kind === "replace" ? s.replace : s.textOverlay,
+                      { left: `${item.x * 100}%`, top: `${item.y * 100}%` },
+                    ]}
+                  >
+                    <Text
+                      numberOfLines={3}
+                      style={
+                        item.kind === "replace"
+                          ? s.replaceText
+                          : s.textOverlayText
+                      }
+                    >
+                      {item.text}
+                    </Text>
+                  </View>
+                ))}
+              {pageAnnotations
+                .filter((item) => item.kind === "draw")
+                .flatMap((item) => item.points ?? [])
+                .concat(stroke)
+                .map((point, index) => (
+                  <View
+                    key={`${index}-${point.x}-${point.y}`}
+                    pointerEvents="none"
+                    style={[
+                      s.dot,
+                      { left: `${point.x * 100}%`, top: `${point.y * 100}%` },
+                    ]}
+                  />
+                ))}
+              {tool !== "view" && (
+                <View pointerEvents="none" style={s.prompt}>
+                  <Text style={s.promptText}>{promptFor(tool)}</Text>
+                </View>
+              )}
+            </View>
+            <View style={s.tools}>
+              <ToolButton
+                label="Text"
+                icon="text-fields"
+                active={tool === "text"}
+                onPress={() => chooseTool("text")}
+              />
+              <ToolButton
+                label="Highlight"
+                icon="highlight"
+                active={tool === "highlight"}
+                onPress={() => chooseTool("highlight")}
+              />
+              <ToolButton
+                label="Draw"
+                icon="gesture"
+                active={tool === "draw"}
+                onPress={() => chooseTool("draw")}
+              />
+              <ToolButton
+                label="Replace"
+                icon="edit-note"
+                active={tool === "replace"}
+                onPress={() => chooseTool("replace")}
+              />
+              <ToolButton
+                label="Delete line"
+                icon="format-strikethrough"
+                active={tool === "delete"}
+                onPress={() => chooseTool("delete")}
+              />
+            </View>
+            <View style={s.actions}>
+              <Pressable
+                disabled={!pageAnnotations.length}
+                onPress={undo}
+                style={({ pressed }) => [s.smallButton, pressed && s.pressed]}
+              >
+                <MaterialIcons name="undo" size={20} color="#475569" />
+                <Text style={s.smallText}>Undo</Text>
+              </Pressable>
+              <Pressable
+                disabled={!redo.length}
+                onPress={redoLast}
+                style={({ pressed }) => [s.smallButton, pressed && s.pressed]}
+              >
+                <MaterialIcons name="redo" size={20} color="#475569" />
+                <Text style={s.smallText}>Redo</Text>
+              </Pressable>
+              <Pressable
+                onPress={exportPdf}
+                style={({ pressed }) => [s.export, pressed && s.pressed]}
+              >
+                {exporting ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <MaterialIcons name="ios-share" size={19} color="#fff" />
+                    <Text style={s.exportText}>Export</Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+            <View style={s.changeHeader}>
+              <Text style={s.changeTitle}>Changes on this page</Text>
+              <Text style={s.badge}>{pageAnnotations.length}</Text>
+            </View>
+          </>
+        }
+        ListEmptyComponent={
+          <View style={s.emptyChanges}>
+            <Text style={s.muted}>No changes on page {page} yet.</Text>
+          </View>
+        }
+        renderItem={({ item }) => (
+          <View style={s.change}>
+            <View style={s.changeIcon}>
+              <MaterialIcons
+                name={
+                  item.kind === "highlight"
+                    ? "highlight"
+                    : item.kind === "draw"
+                      ? "gesture"
+                      : item.kind === "replace"
+                        ? "edit-note"
+                        : item.kind === "delete"
+                          ? "format-strikethrough"
+                          : "text-fields"
+                }
+                size={19}
+                color="#2563EB"
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={1} style={s.changeName}>
+                {annotationLabel(item)}
+              </Text>
+              <Text style={s.changeMeta}>
+                {item.kind === "replace"
+                  ? "Visible text replacement"
+                  : item.kind === "delete"
+                    ? "White cover overlay"
+                    : item.kind}
+              </Text>
+            </View>
+            <Pressable onPress={() => removeAnnotation(item.id)} hitSlop={10}>
+              <MaterialIcons name="close" size={20} color="#94A3B8" />
+            </Pressable>
+          </View>
+        )}
+      />{" "}
+      <Modal
+        transparent
+        animationType="slide"
+        visible={textOpen}
+        onRequestClose={() => setTextOpen(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={s.backdrop}
+        >
+          <View style={s.sheet}>
+            <View style={s.handle} />
+            <Text style={s.sheetTitle}>
+              {tool === "replace" ? "Cover & replace text" : "Add text callout"}
+            </Text>
+            <Text style={s.sheetCopy}>
+              {tool === "replace"
+                ? "A white cover and your replacement wording will appear in the exported PDF."
+                : "Your wording will be added to the selected location in the exported PDF."}
+            </Text>
+            <TextInput
+              autoFocus
+              multiline
+              value={text}
+              onChangeText={setText}
+              placeholder="Type your text"
+              placeholderTextColor="#94A3B8"
+              style={s.input}
+            />
+            <View style={s.sheetActions}>
+              <Pressable
+                onPress={() => {
+                  setTextOpen(false);
+                  setTool("view");
+                }}
+              >
+                <Text style={s.cancel}>Cancel</Text>
+              </Pressable>
+              <View style={{ width: 142 }}>
+                <Primary
+                  label={tool === "replace" ? "Replace" : "Add text"}
+                  icon="add"
+                  onPress={addText}
+                  disabled={!text.trim()}
+                />
+              </View>
+            </View>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+    </ScreenContainer>
+  );
 }
 
 const s = StyleSheet.create({
-  loading: { alignItems: "center", flex: 1, gap: 14, justifyContent: "center" }, muted: { color: "#64748B", fontSize: 14 }, library: { padding: 20, paddingBottom: 30 }, mark: { alignItems: "center", backgroundColor: "#2563EB", borderRadius: 18, height: 52, justifyContent: "center", marginBottom: 17, width: 52 }, title: { color: "#0B1F3A", fontSize: 32, fontWeight: "800", letterSpacing: -1 }, subtitle: { color: "#64748B", fontSize: 16, lineHeight: 23, marginBottom: 21, marginTop: 8 }, primary: { alignItems: "center", backgroundColor: "#2563EB", borderRadius: 14, flexDirection: "row", gap: 8, justifyContent: "center", minHeight: 52, paddingHorizontal: 16 }, primaryText: { color: "#fff", fontSize: 16, fontWeight: "800" }, pressed: { opacity: .65, transform: [{ scale: .98 }] }, sectionLabel: { color: "#64748B", fontSize: 11, fontWeight: "800", letterSpacing: 1.1, marginTop: 28, marginBottom: 10 }, empty: { alignItems: "center", backgroundColor: "#fff", borderColor: "#DCE5F0", borderRadius: 22, borderWidth: 1, padding: 27 }, emptyTitle: { color: "#0B1F3A", fontSize: 19, fontWeight: "800", marginTop: 14 }, emptyCopy: { color: "#64748B", fontSize: 15, lineHeight: 22, marginBottom: 21, marginTop: 7, textAlign: "center" }, doc: { alignItems: "center", backgroundColor: "#fff", borderColor: "#DCE5F0", borderRadius: 16, borderWidth: 1, flexDirection: "row", gap: 11, marginBottom: 10, padding: 13 }, docIcon: { alignItems: "center", backgroundColor: "#EFF6FF", borderRadius: 13, height: 48, justifyContent: "center", width: 48 }, docName: { color: "#0B1F3A", fontSize: 16, fontWeight: "800" }, docMeta: { color: "#64748B", fontSize: 12, marginTop: 4 }, changes: { color: "#2563EB", fontSize: 12, fontWeight: "700", marginTop: 4 }, editor: { padding: 16, paddingBottom: 24 }, topbar: { alignItems: "center", flexDirection: "row", marginBottom: 15 }, icon: { alignItems: "center", backgroundColor: "#fff", borderColor: "#DCE5F0", borderRadius: 14, borderWidth: 1, height: 46, justifyContent: "center", width: 46 }, editorTitle: { color: "#0B1F3A", fontSize: 16, fontWeight: "800", maxWidth: 210 }, status: { color: "#16A34A", fontSize: 12, fontWeight: "700", marginTop: 2 }, nav: { alignItems: "center", flexDirection: "row", justifyContent: "center", marginBottom: 12 }, navButton: { alignItems: "center", backgroundColor: "#fff", borderColor: "#DCE5F0", borderRadius: 12, borderWidth: 1, height: 42, justifyContent: "center", width: 44 }, pageCount: { backgroundColor: "#EAF1FF", borderRadius: 12, color: "#1D4ED8", fontSize: 13, fontWeight: "800", marginHorizontal: 10, overflow: "hidden", paddingHorizontal: 17, paddingVertical: 13 }, hint: { backgroundColor: "#EFF6FF", borderRadius: 12, flexDirection: "row", gap: 8, marginBottom: 13, padding: 11 }, hintText: { color: "#475569", flex: 1, fontSize: 12, lineHeight: 17 }, paper: { aspectRatio: .705, backgroundColor: "#fff", borderColor: "#CBD5E1", borderRadius: 4, borderWidth: 1, elevation: 3, overflow: "hidden" }, paperHeader: { borderBottomColor: "#E2E8F0", borderBottomWidth: 1, flexDirection: "row", justifyContent: "space-between", left: 18, position: "absolute", right: 18, top: 17 }, paperLabel: { color: "#94A3B8", fontSize: 9, fontWeight: "800", letterSpacing: 1, paddingBottom: 8 }, watermark: { alignItems: "center", left: 42, position: "absolute", right: 42, top: "35%" }, waterTitle: { color: "#64748B", fontSize: 16, fontWeight: "800", marginTop: 8 }, waterCopy: { color: "#94A3B8", fontSize: 12, lineHeight: 18, marginTop: 4, textAlign: "center" }, highlight: { backgroundColor: "rgba(253,230,138,.74)", borderRadius: 4, height: "5%", position: "absolute", width: "38%" }, textOverlay: { maxWidth: "60%", position: "absolute" }, textOverlayText: { color: "#2563EB", fontSize: 11, fontWeight: "800", lineHeight: 14 }, replace: { backgroundColor: "#fff", borderColor: "#CBD5E1", borderRadius: 3, borderWidth: 1, maxWidth: "60%", padding: 4, position: "absolute" }, replaceText: { color: "#0B1F3A", fontSize: 11, fontWeight: "800", lineHeight: 14 }, dot: { backgroundColor: "#7C3AED", borderRadius: 3, height: 6, marginLeft: -3, marginTop: -3, position: "absolute", width: 6 }, prompt: { alignSelf: "center", backgroundColor: "#0B1F3A", borderRadius: 20, bottom: 18, paddingHorizontal: 14, paddingVertical: 8, position: "absolute" }, promptText: { color: "#fff", fontSize: 12, fontWeight: "800" }, tools: { backgroundColor: "#fff", borderColor: "#DCE5F0", borderRadius: 18, borderWidth: 1, flexDirection: "row", gap: 7, marginTop: 16, padding: 8 }, tool: { alignItems: "center", borderRadius: 12, flex: 1, gap: 4, justifyContent: "center", minHeight: 56 }, toolActive: { backgroundColor: "#2563EB" }, toolText: { color: "#475569", fontSize: 10, fontWeight: "800" }, toolTextActive: { color: "#fff" }, actions: { alignItems: "center", flexDirection: "row", gap: 8, marginTop: 12 }, smallButton: { alignItems: "center", backgroundColor: "#fff", borderColor: "#DCE5F0", borderRadius: 12, borderWidth: 1, flexDirection: "row", gap: 5, height: 44, justifyContent: "center", paddingHorizontal: 10 }, smallText: { color: "#475569", fontSize: 13, fontWeight: "800" }, export: { alignItems: "center", backgroundColor: "#0B1F3A", borderRadius: 12, flex: 1, flexDirection: "row", gap: 6, height: 44, justifyContent: "center", marginLeft: "auto" }, exportText: { color: "#fff", fontSize: 13, fontWeight: "800" }, changeHeader: { alignItems: "center", flexDirection: "row", justifyContent: "space-between", marginBottom: 9, marginTop: 24 }, changeTitle: { color: "#0B1F3A", fontSize: 17, fontWeight: "800" }, badge: { backgroundColor: "#EAF1FF", borderRadius: 12, color: "#2563EB", fontSize: 12, fontWeight: "800", overflow: "hidden", paddingHorizontal: 9, paddingVertical: 4 }, emptyChanges: { alignItems: "center", backgroundColor: "#fff", borderColor: "#DCE5F0", borderRadius: 16, borderWidth: 1, padding: 18 }, change: { alignItems: "center", backgroundColor: "#fff", borderColor: "#DCE5F0", borderRadius: 15, borderWidth: 1, flexDirection: "row", gap: 10, marginTop: 9, padding: 10 }, changeIcon: { alignItems: "center", backgroundColor: "#EFF6FF", borderRadius: 11, height: 40, justifyContent: "center", width: 40 }, changeName: { color: "#0B1F3A", fontSize: 14, fontWeight: "800" }, changeMeta: { color: "#94A3B8", fontSize: 12, marginTop: 3, textTransform: "capitalize" }, backdrop: { backgroundColor: "rgba(11,31,58,.35)", flex: 1, justifyContent: "flex-end" }, sheet: { backgroundColor: "#fff", borderTopLeftRadius: 25, borderTopRightRadius: 25, padding: 22, paddingBottom: 30 }, handle: { alignSelf: "center", backgroundColor: "#CBD5E1", borderRadius: 4, height: 4, marginBottom: 17, width: 42 }, sheetTitle: { color: "#0B1F3A", fontSize: 21, fontWeight: "800" }, sheetCopy: { color: "#64748B", fontSize: 14, lineHeight: 20, marginTop: 7 }, input: { borderColor: "#CBD5E1", borderRadius: 13, borderWidth: 1, color: "#0B1F3A", fontSize: 16, lineHeight: 21, marginTop: 17, minHeight: 110, padding: 13, textAlignVertical: "top" }, sheetActions: { alignItems: "center", flexDirection: "row", gap: 14, justifyContent: "flex-end", marginTop: 18 }, cancel: { color: "#475569", fontSize: 15, fontWeight: "800", padding: 10 },
+  loading: { alignItems: "center", flex: 1, gap: 14, justifyContent: "center" },
+  muted: { color: "#64748B", fontSize: 14 },
+  library: { padding: 20, paddingBottom: 30 },
+  mark: {
+    alignItems: "center",
+    backgroundColor: "#2563EB",
+    borderRadius: 18,
+    height: 52,
+    justifyContent: "center",
+    marginBottom: 17,
+    width: 52,
+  },
+  title: {
+    color: "#0B1F3A",
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: -1,
+  },
+  subtitle: {
+    color: "#64748B",
+    fontSize: 16,
+    lineHeight: 23,
+    marginBottom: 21,
+    marginTop: 8,
+  },
+  primary: {
+    alignItems: "center",
+    backgroundColor: "#2563EB",
+    borderRadius: 14,
+    flexDirection: "row",
+    gap: 8,
+    justifyContent: "center",
+    minHeight: 52,
+    paddingHorizontal: 16,
+  },
+  primaryText: { color: "#fff", fontSize: 16, fontWeight: "800" },
+  pressed: { opacity: 0.65, transform: [{ scale: 0.98 }] },
+  sectionLabel: {
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1.1,
+    marginTop: 28,
+    marginBottom: 10,
+  },
+  empty: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#DCE5F0",
+    borderRadius: 22,
+    borderWidth: 1,
+    padding: 27,
+  },
+  emptyTitle: {
+    color: "#0B1F3A",
+    fontSize: 19,
+    fontWeight: "800",
+    marginTop: 14,
+  },
+  emptyCopy: {
+    color: "#64748B",
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 21,
+    marginTop: 7,
+    textAlign: "center",
+  },
+  doc: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#DCE5F0",
+    borderRadius: 16,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 11,
+    marginBottom: 10,
+    padding: 13,
+  },
+  docIcon: {
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderRadius: 13,
+    height: 48,
+    justifyContent: "center",
+    width: 48,
+  },
+  docName: { color: "#0B1F3A", fontSize: 16, fontWeight: "800" },
+  docMeta: { color: "#64748B", fontSize: 12, marginTop: 4 },
+  changes: { color: "#2563EB", fontSize: 12, fontWeight: "700", marginTop: 4 },
+  editor: { padding: 16, paddingBottom: 24 },
+  topbar: { alignItems: "center", flexDirection: "row", marginBottom: 15 },
+  icon: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#DCE5F0",
+    borderRadius: 14,
+    borderWidth: 1,
+    height: 46,
+    justifyContent: "center",
+    width: 46,
+  },
+  editorTitle: {
+    color: "#0B1F3A",
+    fontSize: 16,
+    fontWeight: "800",
+    maxWidth: 210,
+  },
+  status: { color: "#16A34A", fontSize: 12, fontWeight: "700", marginTop: 2 },
+  nav: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+  navButton: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#DCE5F0",
+    borderRadius: 12,
+    borderWidth: 1,
+    height: 42,
+    justifyContent: "center",
+    width: 44,
+  },
+  pageCount: {
+    backgroundColor: "#EAF1FF",
+    borderRadius: 12,
+    color: "#1D4ED8",
+    fontSize: 13,
+    fontWeight: "800",
+    marginHorizontal: 10,
+    overflow: "hidden",
+    paddingHorizontal: 17,
+    paddingVertical: 13,
+  },
+  hint: {
+    backgroundColor: "#EFF6FF",
+    borderRadius: 12,
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 13,
+    padding: 11,
+  },
+  hintText: { color: "#475569", flex: 1, fontSize: 12, lineHeight: 17 },
+  paper: {
+    aspectRatio: 0.705,
+    backgroundColor: "#fff",
+    borderColor: "#CBD5E1",
+    borderRadius: 4,
+    borderWidth: 1,
+    elevation: 3,
+    overflow: "hidden",
+  },
+  paperHeader: {
+    borderBottomColor: "#E2E8F0",
+    borderBottomWidth: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    left: 18,
+    position: "absolute",
+    right: 18,
+    top: 17,
+  },
+  paperLabel: {
+    color: "#94A3B8",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 1,
+    paddingBottom: 8,
+  },
+  watermark: {
+    alignItems: "center",
+    left: 42,
+    position: "absolute",
+    right: 42,
+    top: "35%",
+  },
+  waterTitle: {
+    color: "#64748B",
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 8,
+  },
+  waterCopy: {
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: 4,
+    textAlign: "center",
+  },
+  highlight: {
+    backgroundColor: "rgba(253,230,138,.74)",
+    borderRadius: 4,
+    height: "5%",
+    position: "absolute",
+    width: "38%",
+  },
+  textOverlay: { maxWidth: "60%", position: "absolute" },
+  textOverlayText: {
+    color: "#2563EB",
+    fontSize: 11,
+    fontWeight: "800",
+    lineHeight: 14,
+  },
+  replace: {
+    backgroundColor: "#fff",
+    borderColor: "#CBD5E1",
+    borderRadius: 3,
+    borderWidth: 1,
+    maxWidth: "60%",
+    padding: 4,
+    position: "absolute",
+  },
+  replaceText: {
+    color: "#0B1F3A",
+    fontSize: 11,
+    fontWeight: "800",
+    lineHeight: 14,
+  },
+  dot: {
+    backgroundColor: "#7C3AED",
+    borderRadius: 3,
+    height: 6,
+    marginLeft: -3,
+    marginTop: -3,
+    position: "absolute",
+    width: 6,
+  },
+  prompt: {
+    alignSelf: "center",
+    backgroundColor: "#0B1F3A",
+    borderRadius: 20,
+    bottom: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    position: "absolute",
+  },
+  promptText: { color: "#fff", fontSize: 12, fontWeight: "800" },
+  tools: {
+    backgroundColor: "#fff",
+    borderColor: "#DCE5F0",
+    borderRadius: 18,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 7,
+    marginTop: 16,
+    padding: 8,
+  },
+  tool: {
+    alignItems: "center",
+    borderRadius: 12,
+    flex: 1,
+    gap: 4,
+    justifyContent: "center",
+    minHeight: 56,
+  },
+  toolActive: { backgroundColor: "#2563EB" },
+  toolText: { color: "#475569", fontSize: 10, fontWeight: "800" },
+  toolTextActive: { color: "#fff" },
+  actions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 12,
+  },
+  smallButton: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#DCE5F0",
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 5,
+    height: 44,
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  smallText: { color: "#475569", fontSize: 13, fontWeight: "800" },
+  export: {
+    alignItems: "center",
+    backgroundColor: "#0B1F3A",
+    borderRadius: 12,
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    height: 44,
+    justifyContent: "center",
+    marginLeft: "auto",
+  },
+  exportText: { color: "#fff", fontSize: 13, fontWeight: "800" },
+  changeHeader: {
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 9,
+    marginTop: 24,
+  },
+  changeTitle: { color: "#0B1F3A", fontSize: 17, fontWeight: "800" },
+  badge: {
+    backgroundColor: "#EAF1FF",
+    borderRadius: 12,
+    color: "#2563EB",
+    fontSize: 12,
+    fontWeight: "800",
+    overflow: "hidden",
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+  },
+  emptyChanges: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#DCE5F0",
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 18,
+  },
+  change: {
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderColor: "#DCE5F0",
+    borderRadius: 15,
+    borderWidth: 1,
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 9,
+    padding: 10,
+  },
+  changeIcon: {
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    borderRadius: 11,
+    height: 40,
+    justifyContent: "center",
+    width: 40,
+  },
+  changeName: { color: "#0B1F3A", fontSize: 14, fontWeight: "800" },
+  changeMeta: {
+    color: "#94A3B8",
+    fontSize: 12,
+    marginTop: 3,
+    textTransform: "capitalize",
+  },
+  backdrop: {
+    backgroundColor: "rgba(11,31,58,.35)",
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  sheet: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    padding: 22,
+    paddingBottom: 30,
+  },
+  handle: {
+    alignSelf: "center",
+    backgroundColor: "#CBD5E1",
+    borderRadius: 4,
+    height: 4,
+    marginBottom: 17,
+    width: 42,
+  },
+  sheetTitle: { color: "#0B1F3A", fontSize: 21, fontWeight: "800" },
+  sheetCopy: { color: "#64748B", fontSize: 14, lineHeight: 20, marginTop: 7 },
+  input: {
+    borderColor: "#CBD5E1",
+    borderRadius: 13,
+    borderWidth: 1,
+    color: "#0B1F3A",
+    fontSize: 16,
+    lineHeight: 21,
+    marginTop: 17,
+    minHeight: 110,
+    padding: 13,
+    textAlignVertical: "top",
+  },
+  sheetActions: {
+    alignItems: "center",
+    flexDirection: "row",
+    gap: 14,
+    justifyContent: "flex-end",
+    marginTop: 18,
+  },
+  cancel: { color: "#475569", fontSize: 15, fontWeight: "800", padding: 10 },
 });

@@ -18,7 +18,7 @@
 - [x] Monitor the replacement GitHub Actions run until an APK artifact is produced.
 - [ ] Diagnose and fix the Android splash screen that does not dismiss on launch.
 - [ ] Rebuild and validate a corrected universal APK for 32-bit and 64-bit ARM phones.
-- [ ] Add README-requested PDF text-editing dependencies compatible with Expo.
-- [ ] Update the Android APK workflow for the expanded editor build.
-- [ ] Implement line-level text selection, modification, deletion, and addition interactions.
+- [x] Add README-requested PDF text-editing dependencies compatible with Expo (using the existing Expo-compatible PDF stack).
+- [x] Update the Android APK workflow for the expanded editor build.
+- [x] Implement line-level text selection, modification, deletion, and addition interactions.
 - [ ] Validate the updated app and push the changes to the private GitHub repository.

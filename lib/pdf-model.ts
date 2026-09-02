@@ -1,4 +1,9 @@
-export type AnnotationKind = "text" | "highlight" | "draw" | "replace" | "delete";
+export type AnnotationKind =
+  | "text"
+  | "highlight"
+  | "draw"
+  | "replace"
+  | "delete";
 
 export type NormalizedPoint = {
   x: number;
@@ -34,12 +39,13 @@ export const annotationLabel = (annotation: PdfAnnotation) => {
   if (annotation.kind === "draw") return "Pen mark";
   if (annotation.kind === "delete") return "Delete line";
   if (annotation.kind === "replace") return "Cover & replace";
-  if (annotation.kind === "delete") return "Delete line";
   return annotation.text?.trim() || "Text callout";
 };
 
-export const annotationsForPage = (annotations: PdfAnnotation[], page: number) =>
-  annotations.filter((annotation) => annotation.page === page);
+export const annotationsForPage = (
+  annotations: PdfAnnotation[],
+  page: number,
+) => annotations.filter((annotation) => annotation.page === page);
 
 export const createAnnotation = (
   kind: AnnotationKind,
@@ -56,8 +62,13 @@ export const createAnnotation = (
   ...details,
 });
 
-export const removeLastAnnotationOnPage = (document: PdfDocumentRecord, page: number) => {
-  const matching = document.annotations.filter((annotation) => annotation.page === page);
+export const removeLastAnnotationOnPage = (
+  document: PdfDocumentRecord,
+  page: number,
+) => {
+  const matching = document.annotations.filter(
+    (annotation) => annotation.page === page,
+  );
   const last = matching.at(-1);
 
   if (!last) return { document, removed: null as PdfAnnotation | null };
@@ -65,7 +76,9 @@ export const removeLastAnnotationOnPage = (document: PdfDocumentRecord, page: nu
   return {
     document: {
       ...document,
-      annotations: document.annotations.filter((annotation) => annotation.id !== last.id),
+      annotations: document.annotations.filter(
+        (annotation) => annotation.id !== last.id,
+      ),
       lastEditedAt: Date.now(),
     },
     removed: last,
